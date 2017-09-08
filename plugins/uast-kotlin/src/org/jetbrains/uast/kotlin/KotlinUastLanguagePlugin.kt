@@ -70,19 +70,18 @@ class KotlinUastLanguagePlugin : UastLanguagePlugin {
         val parentCallback = fun(): UElement? {
             val parent = element.parent
             val parentUnwrapped = KotlinConverter.unwrapElements(parent) ?: return null
-            return when (parentUnwrapped) {
-                is KtAnnotationEntry -> uastAnnotationEntry(parent, parentUnwrapped) ?:
-                                        convertElementWithParent(parentUnwrapped, null)
-                else -> convertElementWithParent(parentUnwrapped, null)
+            val convertedParent = convertElementWithParent(parentUnwrapped, null)
+            return when (convertedParent) {
+                is UAnnotation -> tryParentAsAnnotationArgument(parent, convertedParent) ?: convertedParent
+                else -> convertedParent
             }
         }
         return convertDeclaration(element, parentCallback, requiredType)
                ?: KotlinConverter.convertPsiElement(element, parentCallback, requiredType)
     }
 
-    private fun uastAnnotationEntry(parent: PsiElement, parentUnwrapped: KtAnnotationEntry): UNamedExpression? {
+    private fun tryParentAsAnnotationArgument(parent: PsiElement, uAnnotation: UAnnotation): UNamedExpression? {
         val valueArgument = PsiTreeUtil.getParentOfType(parent, KtValueArgument::class.java, false) ?: return null
-        val uAnnotation = (convertElementWithParent(parentUnwrapped, null) as? UAnnotation) ?: return null
         valueArgument.getArgumentName()?.asName?.asString()?.let { argumentName ->
             return uAnnotation.attributeValues.find { it.name == argumentName }
         }
